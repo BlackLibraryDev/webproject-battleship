@@ -24,6 +24,7 @@ export class HexTile extends Phaser.GameObjects.Container {
         this.bgGraphics = scene.add.graphics();
         this.drawHexagon(this.terrain.color);
         this.add(this.bgGraphics);
+        //테두리 선 없애기
 
         // 2. 타일 상단 텍스트 (좌표 또는 건물/지형 이름 표시)
         this.label = scene.add.text(0, 0, `${q},${r}`, {
@@ -77,7 +78,8 @@ export class HexTile extends Phaser.GameObjects.Container {
         const points = this.getHexPoints();
         this.bgGraphics.clear();
         this.bgGraphics.fillStyle(color, 1);
-        this.bgGraphics.lineStyle(2, 0x111111, 0.8);
+        this.bgGraphics.lineStyle(1, 0xffffff, 0); // 테두리 선 스타일 설정
+       // this.bgGraphics.lineStyle(2, 0x111111, 0.8);
         this.bgGraphics.fillPoints(points, true);
         this.bgGraphics.strokePoints(points, true);
     }

@@ -11,6 +11,7 @@ export default class PreloadScene extends Phaser.Scene {
         // 1. TSV 파일을 텍스트 형식으로 로드 (경로는 assets에 두는 것 권장)
         this.load.text('translations', 'assets/data/translations.tsv');
 
+        this.load.image('main', 'assets/images/main.jpg');
 
         this.load.image('iowa', 'assets/images/iowa.png');
         this.load.image('iowa_sunk', 'assets/images/iowa_sunk.png');

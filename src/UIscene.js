@@ -25,6 +25,13 @@ export default class UIScene extends Phaser.Scene {
             gameScene.pauseGame();
         });
 
+         // 씬 종료 시 이벤트 해제
+        this.events.once('shutdown', () => {
+            
+            this.events.off(GameEvents.GAME_RESUMED, this.resumeGame, this);
+            
+        });
+
         // --------------------------------------------------
         // 2. 일시정지 팝업 메뉴 컨테이너 (초기에는 숨김)
         // --------------------------------------------------
@@ -40,6 +47,13 @@ export default class UIScene extends Phaser.Scene {
         this.make_turnEndButton();
 
         this.make_portraitContainer();
+    }
+
+    make_controllerContainer() {
+        this.controllerContainer = this.add.container(20, this.scale.height - 20);
+        this.controllerContainer.setVisible(false);
+        //좌회전,우회전,수리, 주포1, 주포2, 주포3, 주포4
+
     }
 
     make_portraitContainer() {
@@ -95,14 +109,26 @@ export default class UIScene extends Phaser.Scene {
     }
 
     make_turnEndButton(){
-        const turnEndBtn = this.add.text(this.scale.width - 40, this.scale.height - 50, LanguageData.getText('turn_end'), {
+        //턴 종료 버튼 내 정사각형 이미지
+        const turnEndBtBg = this.add.rectangle(this.scale.width - 20, this.scale.height - 30, 160, 160, 0x333333)
+            .setOrigin(1, 1)
+            .setInteractive({ useHandCursor: true });   
+
+
+        const turnEndBtImage = this.add.image(this.scale.width - 40, this.scale.height - 50, 'turn_end')
+            .setDisplaySize(120, 120)
+            .setOrigin(1, 1)
+            
+
+        const turnEndBtn = this.add.text(this.scale.width - 20, this.scale.height - 20, LanguageData.getText('turn_end'), {
             fontSize: '28px',
             fill: '#ffffff',
-            backgroundColor: '#333333',
-            padding: { x: 12, y: 12 }
-        }).setOrigin(1, 1).setInteractive({ useHandCursor: true });
+            padding: { x: 12, y: 12 },
+            stroke: '#111111',
+            strokeThickness: 4
+        }).setOrigin(1, 1)
 
-        turnEndBtn.on('pointerdown', () => {
+        turnEndBtBg.on('pointerdown', () => {
             // GameScene의 turnEnd 메서드 직접 호출 또는 이벤트 발송
             const gameScene = this.scene.get('GameScene');
             gameScene.turnEnd();

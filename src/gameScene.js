@@ -11,6 +11,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     create() {
+        this.input.addPointer(2);
+
         // UI 씬 병렬 실행
         this.scene.run('UIScene');
 
@@ -41,8 +43,9 @@ export default class GameScene extends Phaser.Scene {
         // 씬 종료 시 이벤트 해제
         this.events.once('shutdown', () => {
             
-            uiScene.events.off(GameEvents.GAME_RESUMED, this.resumeGame, this);
-          
+            //uiScene.events.off(GameEvents.GAME_RESUMED, this.resumeGame, this);
+            this.events.off(GameEvents.TOGGLE_PAUSE);
+            this.tweens.killAll(); // 모든 트윈 제거
             this.events.off('pause');
             this.events.off('resume');
             this.events.off('tileClicked');
@@ -82,7 +85,7 @@ export default class GameScene extends Phaser.Scene {
                         this.clearSelectedTile(); // 이전 선택된 타일 초기화
                         this.selectedTile = tile; // 선택된 타일 저장
                         this.selectedShip = ship; // 선택된 군함 저장
-                        this.renderTile(tile.q, tile.r, TERRAIN_TYPES.SELECTED); // 타일 선택 표시
+                        this.drawTile(TERRAIN_TYPES.SELECTED, tile.q, tile.r); // 선택된 타일 표시
                         this.renderAttackTile();
                         uiScene.set_portraitVisible(true, ship ); // 클릭된 타일의 지형 이름을 UI에 전달
 
@@ -200,26 +203,54 @@ export default class GameScene extends Phaser.Scene {
     renderAttackTile(){
         if(this.selectedShip && this.selectedShip.attackTile){
             const tile = this.selectedShip.attackTile;
-            this.renderTile(tile.q, tile.r, TERRAIN_TYPES.ATTACK); // 공격 타일 표시
-           
+            //this.renderTile(tile.q, tile.r, TERRAIN_TYPES.ATTACK); // 공격 타일 표시
+            this.drawTile(TERRAIN_TYPES.ATTACK, tile.q, tile.r);
         }
     }
     clearSelectedTile(selected = false ) {
         if (this.selectedTile) {
             const { q, r, terrain } = this.selectedTile;
-            this.renderTile(q, r, terrain); // 원래 지형으로 복원
+            //this.renderTile(q, r, terrain); // 원래 지형으로 복원
+            this.clearSelectedTiles(); // 선택된 타일 그래픽 제거
             this.selectedTile = null; // 선택된 타일 초기화
             this.selectedShip = null; // 선택된 군함 초기화
             
         }
     }
     clearAttackTile(){
-        this.resetHexMap(this.mapGrid); // 맵 초기화
+        this.clearSelectedTiles();
         if(this.selectedTile){
             const { q, r, terrain } = this.selectedTile;
-            this.renderTile(q, r, TERRAIN_TYPES.SELECTED); // 선택된 타일 표시
+            this.drawTile(TERRAIN_TYPES.SELECTED, q, r); // 선택된 타일 표시
         }
     }
+    //selectedTile,attackTile을 배열에 넣고 새로 그리는 방식으로 랜더링
+    selectedTiles = [];
+    drawTile(tileData, q, r) {
+        const pos = this.axialToPixel(q, r);
+        const graphics = this.add.graphics();
+        //TERRAIN_TYPES.SELECTED
+        graphics.fillStyle(tileData.color, 0.6); // 색상과 투명도 설정
+        graphics.beginPath();
+        for (let i = 0; i < 6; i++) {
+            const angle = Phaser.Math.DegToRad(60 * i);
+            const x = pos.x + HEX_SIZE * Math.sin(angle);
+            const y = pos.y + HEX_SIZE * Math.cos(angle);
+            if (i === 0) {
+                graphics.moveTo(x, y);
+            } else {
+                graphics.lineTo(x, y);
+            }
+        }
+        graphics.closePath();
+        graphics.fillPath();
+        this.selectedTiles.push(graphics); // 선택된 타일 그래픽 저장
+    }
+    clearSelectedTiles() {
+        this.selectedTiles.forEach(tile => tile.destroy());
+        this.selectedTiles = [];
+    }
+    
     generateHexMapFromGrid(grid) {
         
 
@@ -252,12 +283,50 @@ export default class GameScene extends Phaser.Scene {
                 this.cameras.main.scrollY -= (pointer.y - pointer.prevPosition.y);
             }
         });
+        // 두 점으로 확대 축소
+        this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
+            const zoomFactor = 0.001; // 확대/축소 속도 조절
+            this.cameras.main.zoom -= deltaY * zoomFactor;
+            this.cameras.main.zoom = Phaser.Math.Clamp(this.cameras.main.zoom, 0.5, 2); // 최소/최대 줌 제한
+        });
     }
 
     update() {
         // ESC 키 입력 시 일시정지 토글
         if (Phaser.Input.Keyboard.JustDown(this.escKey)) {
             this.pauseGame();
+        }
+        // 두 개의 포인터를 가져옵니다.
+        const pointer1 = this.input.pointer1;
+        const pointer2 = this.input.pointer2;
+
+        // 2. 두 손가락이 모두 화면을 누르고 있을 때만 실행
+        if (pointer1.isDown && pointer2.isDown) {
+            // 현재 두 포인터 사이의 거리를 계산 (Phaser.Math 사용)
+            const currentDistance = Phaser.Math.Distance.Between(
+                pointer1.x, pointer1.y,
+                pointer2.x, pointer2.y
+            );
+
+            // 이전 거리가 기록되어 있다면 (터치를 시작한 직후 프레임이 아니라면)
+            if (this.prevDistance > 0) {
+                // 거리의 변화량을 계산 (확대 시 양수, 축소 시 음수)
+                const distanceDelta = currentDistance - this.prevDistance;
+
+                // 3. 카메라 줌 값 변경 (0.01은 민감도 조절용 가중치)
+                let newZoom = this.cameras.main.zoom + (distanceDelta * 0.01);
+
+                // 줌 제한 범위 설정 (최소 0.5배 ~ 최대 3.0배)
+                newZoom = Phaser.Math.Clamp(newZoom, 0.5, 3.0);
+
+                this.cameras.main.setZoom(newZoom);
+            }
+
+            // 현재 거리를 다음 프레임을 위해 저장
+            this.prevDistance = currentDistance;
+        } else {
+            // 두 손가락 중 하나라도 떼어지면 이전 거리 기록을 초기화
+            this.prevDistance = 0;
         }
     }
 
